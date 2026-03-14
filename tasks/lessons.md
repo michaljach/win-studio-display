@@ -17,3 +17,4 @@
 - When EXE-hosted invocation still behaves differently, spawn a child PowerShell process (`-File ...`) so backend parsing exactly matches manual CLI execution.
 - In child-process invocation, pass `-Value` as an explicit named argument (not positional) to prevent command/value/index ambiguity in compiled-host edge cases.
 - For native-process calls from PowerShell, splat a real variable array (`@args`) instead of inline `@(...)` and include executed-command text in error output for fast diagnosis.
+- If CLI behavior is correct but UI is not, align UI target selection with CLI defaults (prefer serial/no selector) before relying on volatile index-based routing.

@@ -233,10 +233,28 @@ function Get-Displays {
     return $parsed
 }
 
-function Get-BrightnessForIndex {
-    param([int]$Index)
+function Get-SelectorArgs {
+    param([pscustomobject]$Display)
 
-    $lines = Invoke-Backend -Command "get" -Index $Index
+    $selector = @{}
+    $serial = [string]$Display.Serial
+    if (-not [string]::IsNullOrWhiteSpace($serial) -and $serial -ne "unknown") {
+        $selector["Serial"] = $serial
+        return $selector
+    }
+
+    if ($script:Displays.Count -gt 1) {
+        $selector["Index"] = [int]$Display.Index
+    }
+
+    return $selector
+}
+
+function Get-BrightnessForDisplay {
+    param([pscustomobject]$Display)
+
+    $selector = Get-SelectorArgs -Display $Display
+    $lines = Invoke-Backend -Command "get" @selector
     foreach ($line in $lines) {
         if ($line -match 'brightness=(?<value>\d+)%') {
             return [int]$Matches["value"]
@@ -246,13 +264,14 @@ function Get-BrightnessForIndex {
     throw "Could not parse brightness from backend output."
 }
 
-function Set-BrightnessForIndex {
+function Set-BrightnessForDisplay {
     param(
-        [int]$Index,
+        [pscustomobject]$Display,
         [int]$Value
     )
 
-    $null = Invoke-Backend -Command "set" -Value $Value -Index $Index
+    $selector = Get-SelectorArgs -Display $Display
+    $null = Invoke-Backend -Command "set" -Value $Value @selector
 }
 
 $form = New-Object System.Windows.Forms.Form
@@ -353,7 +372,7 @@ function Refresh-CurrentBrightness {
     }
 
     try {
-        $brightness = Get-BrightnessForIndex -Index $selected.Index
+        $brightness = Get-BrightnessForDisplay -Display $selected
         $brightnessSlider.Value = [Math]::Max(0, [Math]::Min(100, $brightness))
         $valueLabel.Text = "$brightness%"
     }
@@ -450,7 +469,7 @@ $applyButton.Add_Click({
     }
 
     try {
-        Set-BrightnessForIndex -Index $selected.Index -Value $brightnessSlider.Value
+        Set-BrightnessForDisplay -Display $selected -Value $brightnessSlider.Value
         Refresh-CurrentBrightness
         Set-Status -Message ("Applied brightness {0}%" -f $brightnessSlider.Value)
     }
