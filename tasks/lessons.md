@@ -4,3 +4,4 @@
 - For Apple Studio Display specifically, default to HID control (`VID_05AC`, `PID_1114`) instead of DDC/CI monitor APIs; generic PnP names are a symptom of using the wrong control path.
 - When the user asks to "do the same in our script," implement the external project's core logic directly rather than wrapping/downloading their binary.
 - Do not hardcode a single product/interface tuple for Apple displays; probe all Apple HID devices for brightness report support to handle new hardware revisions.
+- During HID discovery, do not require read/write opens or HID attributes to always succeed; add zero-access open and path VID/PID fallback to avoid false "device not found" results.

@@ -110,6 +110,12 @@ public static class StudioDisplayHid
     private static extern bool HidD_GetSerialNumberString(SafeFileHandle HidDeviceObject, byte[] Buffer, int BufferLength);
 
     [DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, byte[] Buffer, int BufferLength);
+
+    [DllImport("hid.dll", SetLastError = true)]
+    private static extern bool HidD_GetProductString(SafeFileHandle HidDeviceObject, byte[] Buffer, int BufferLength);
+
+    [DllImport("hid.dll", SetLastError = true)]
     private static extern bool HidD_GetFeature(SafeFileHandle HidDeviceObject, byte[] ReportBuffer, int ReportBufferLength);
 
     [DllImport("hid.dll", SetLastError = true)]
@@ -215,7 +221,7 @@ public static class StudioDisplayHid
                     continue;
                 }
 
-                using (SafeFileHandle handle = OpenPath(path, true))
+                using (SafeFileHandle handle = OpenBestEffort(path))
                 {
                     if (handle.IsInvalid)
                     {
@@ -223,15 +229,15 @@ public static class StudioDisplayHid
                         continue;
                     }
 
-                    var attributes = new HIDD_ATTRIBUTES();
-                    attributes.Size = Marshal.SizeOf(typeof(HIDD_ATTRIBUTES));
-                    if (!HidD_GetAttributes(handle, ref attributes))
+                    ushort deviceVendorId;
+                    ushort deviceProductId;
+                    if (!TryGetDeviceIds(handle, path, out deviceVendorId, out deviceProductId))
                     {
                         index++;
                         continue;
                     }
 
-                    if (attributes.VendorID != vendorId)
+                    if (deviceVendorId != vendorId)
                     {
                         index++;
                         continue;
@@ -239,14 +245,13 @@ public static class StudioDisplayHid
 
                     string serial = ReadSerial(handle);
                     int interfaceNumber = ExtractInterfaceNumber(path);
-                    uint brightness;
-                    uint? brightnessRaw = TryReadBrightness(handle, out brightness) ? (uint?)brightness : null;
+                    uint? brightnessRaw = ProbeBrightness(path);
 
                     devices.Add(new StudioDisplayDevice
                     {
                         Path = path,
                         Serial = serial,
-                        ProductId = attributes.ProductID,
+                        ProductId = deviceProductId,
                         InterfaceNumber = interfaceNumber,
                         BrightnessRaw = brightnessRaw
                     });
@@ -265,42 +270,214 @@ public static class StudioDisplayHid
 
     public static uint ReadBrightnessRaw(string path)
     {
+        uint value;
+
         using (SafeFileHandle handle = OpenPath(path, true))
         {
-            if (handle.IsInvalid)
+            if (!handle.IsInvalid && TryReadBrightness(handle, out value))
             {
-                throw new InvalidOperationException("Could not open device path.");
+                return value;
             }
-
-            uint value;
-            if (!TryReadBrightness(handle, out value))
-            {
-                throw new InvalidOperationException("Could not read brightness feature report.");
-            }
-
-            return value;
         }
+
+        using (SafeFileHandle handle = OpenPath(path, false))
+        {
+            if (!handle.IsInvalid && TryReadBrightness(handle, out value))
+            {
+                return value;
+            }
+        }
+
+        throw new InvalidOperationException("Could not read brightness feature report.");
     }
 
     public static void WriteBrightnessRaw(string path, uint rawBrightness)
     {
+        int lastError = 0;
+
         using (SafeFileHandle handle = OpenPath(path, true))
         {
-            if (handle.IsInvalid)
+            if (!handle.IsInvalid && TryWriteBrightness(handle, rawBrightness, out lastError))
             {
-                throw new InvalidOperationException("Could not open device path.");
-            }
-
-            var report = new byte[REPORT_LENGTH];
-            report[0] = REPORT_ID;
-            var rawBytes = BitConverter.GetBytes(rawBrightness);
-            Buffer.BlockCopy(rawBytes, 0, report, 1, 4);
-
-            if (!HidD_SetFeature(handle, report, report.Length))
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "HidD_SetFeature failed");
+                return;
             }
         }
+
+        using (SafeFileHandle handle = OpenPath(path, false))
+        {
+            if (!handle.IsInvalid && TryWriteBrightness(handle, rawBrightness, out lastError))
+            {
+                return;
+            }
+        }
+
+        if (lastError != 0)
+        {
+            throw new Win32Exception(lastError, "HidD_SetFeature failed");
+        }
+
+        throw new InvalidOperationException("Could not write brightness feature report.");
+    }
+
+    private static bool TryWriteBrightness(SafeFileHandle handle, uint rawBrightness, out int lastError)
+    {
+        var report = new byte[REPORT_LENGTH];
+        report[0] = REPORT_ID;
+        var rawBytes = BitConverter.GetBytes(rawBrightness);
+        Buffer.BlockCopy(rawBytes, 0, report, 1, 4);
+
+        if (HidD_SetFeature(handle, report, report.Length))
+        {
+            lastError = 0;
+            return true;
+        }
+
+        lastError = Marshal.GetLastWin32Error();
+        return false;
+    }
+
+    private static uint? ProbeBrightness(string path)
+    {
+        uint value;
+
+        using (SafeFileHandle handle = OpenPath(path, true))
+        {
+            if (!handle.IsInvalid && TryReadBrightness(handle, out value))
+            {
+                return value;
+            }
+        }
+
+        using (SafeFileHandle handle = OpenPath(path, false))
+        {
+            if (!handle.IsInvalid && TryReadBrightness(handle, out value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryGetDeviceIds(SafeFileHandle handle, string path, out ushort vendorId, out ushort productId)
+    {
+        var attributes = new HIDD_ATTRIBUTES();
+        attributes.Size = Marshal.SizeOf(typeof(HIDD_ATTRIBUTES));
+
+        if (HidD_GetAttributes(handle, ref attributes))
+        {
+            vendorId = attributes.VendorID;
+            productId = attributes.ProductID;
+            return true;
+        }
+
+        return TryExtractVidPidFromPath(path, out vendorId, out productId);
+    }
+
+    private static bool TryExtractVidPidFromPath(string path, out ushort vendorId, out ushort productId)
+    {
+        vendorId = 0;
+        productId = 0;
+
+        if (String.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        string lower = path.ToLowerInvariant();
+        ushort vid;
+        ushort pid;
+        if (!TryExtractHexToken(lower, "vid_", out vid))
+        {
+            return false;
+        }
+
+        if (!TryExtractHexToken(lower, "pid_", out pid))
+        {
+            return false;
+        }
+
+        vendorId = vid;
+        productId = pid;
+        return true;
+    }
+
+    private static bool TryExtractHexToken(string lower, string marker, out ushort value)
+    {
+        value = 0;
+        int index = lower.IndexOf(marker, StringComparison.Ordinal);
+        if (index < 0 || index + marker.Length + 4 > lower.Length)
+        {
+            return false;
+        }
+
+        string hex = lower.Substring(index + marker.Length, 4);
+        ushort parsed;
+        if (!UInt16.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parsed))
+        {
+            return false;
+        }
+
+        value = parsed;
+        return true;
+    }
+
+    private static SafeFileHandle OpenBestEffort(string path)
+    {
+        var readWriteHandle = OpenPath(path, true);
+        if (!readWriteHandle.IsInvalid)
+        {
+            return readWriteHandle;
+        }
+
+        readWriteHandle.Dispose();
+
+        return OpenPath(path, false);
+    }
+
+    private static string DecodeRawString(byte[] raw)
+    {
+        if (raw == null || raw.Length == 0)
+        {
+            return null;
+        }
+
+        string value = Encoding.Unicode.GetString(raw);
+        int nullTerminator = value.IndexOf('\0');
+        if (nullTerminator >= 0)
+        {
+            value = value.Substring(0, nullTerminator);
+        }
+
+        value = value.Trim();
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        return value;
+    }
+
+    private static string ReadManufacturerString(SafeFileHandle handle)
+    {
+        var buffer = new byte[256];
+        if (!HidD_GetManufacturerString(handle, buffer, buffer.Length))
+        {
+            return null;
+        }
+
+        return DecodeRawString(buffer);
+    }
+
+    private static string ReadProductString(SafeFileHandle handle)
+    {
+        var buffer = new byte[256];
+        if (!HidD_GetProductString(handle, buffer, buffer.Length))
+        {
+            return null;
+        }
+
+        return DecodeRawString(buffer);
     }
 
     private static SafeFileHandle OpenPath(string path, bool readWrite)
@@ -314,18 +491,22 @@ public static class StudioDisplayHid
         var serialBuffer = new byte[256];
         if (!HidD_GetSerialNumberString(handle, serialBuffer, serialBuffer.Length))
         {
-            return null;
+            string manufacturer = ReadManufacturerString(handle);
+            string product = ReadProductString(handle);
+            if (manufacturer == null && product == null)
+            {
+                return null;
+            }
+
+            if (manufacturer != null && product != null)
+            {
+                return manufacturer + " " + product;
+            }
+
+            return manufacturer ?? product;
         }
 
-        string value = Encoding.Unicode.GetString(serialBuffer);
-        int nullTerminator = value.IndexOf('\0');
-        if (nullTerminator >= 0)
-        {
-            value = value.Substring(0, nullTerminator);
-        }
-
-        value = value.Trim();
-        return value.Length == 0 ? null : value;
+        return DecodeRawString(serialBuffer);
     }
 
     private static bool TryReadBrightness(SafeFileHandle handle, out uint brightness)
