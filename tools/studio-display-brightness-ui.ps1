@@ -235,10 +235,6 @@ function Get-SelectorArgs {
         return $selector
     }
 
-    if ($script:Displays.Count -gt 1) {
-        $selector["Index"] = [int]$Display.Index
-    }
-
     return $selector
 }
 

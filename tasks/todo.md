@@ -23,6 +23,7 @@
 - [x] Route UI Apply through `inc/dec` delta commands to avoid fragile `set` binding paths.
 - [x] Add UI build-id and backend invocation logging to prove which executable code path is running.
 - [x] Restore `set` as primary UI apply path with `inc/dec` fallback only on failure.
+- [x] Remove index pinning for unknown-serial UI selections to match CLI endpoint targeting behavior.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -50,4 +51,5 @@
 - UI Apply now computes target delta and uses backend `inc`/`dec` commands instead of `set`, bypassing the persistent `set` argument-binding failure in EXE-hosted runs.
 - UI now includes build id `2026-03-14.1` in title and logs every backend invocation/output to `%TEMP%\studio-display-brightness-ui.log` to detect stale EXE usage.
 - UI Apply now attempts backend `set` first (matching working CLI behavior) and only falls back to `inc/dec` delta if `set` throws.
+- UI selector mapping now uses `-Serial` when available, otherwise no selector (no `-Index`), so backend handles unknown-serial endpoint selection the same way as working CLI commands.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
