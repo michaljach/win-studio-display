@@ -95,9 +95,12 @@ function Resolve-BackendScript {
 $script:BackendScript = Resolve-BackendScript
 $script:Displays = @()
 $script:Loading = $false
+$script:EmbeddedBackendTempFile = $null
 
 if ($script:BackendScript -eq "__EMBEDDED__") {
-    $script:EmbeddedBackendBlock = [scriptblock]::Create($script:EmbeddedBackendScript)
+    $script:EmbeddedBackendTempFile = Join-Path ([IO.Path]::GetTempPath()) ("studio-display-brightness-backend-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
+    Set-Content -LiteralPath $script:EmbeddedBackendTempFile -Value $script:EmbeddedBackendScript -Encoding UTF8
+    $script:BackendScript = $script:EmbeddedBackendTempFile
 }
 
 function Invoke-Backend {
@@ -123,12 +126,7 @@ function Invoke-Backend {
     }
 
     try {
-        if ($script:BackendScript -eq "__EMBEDDED__") {
-            $output = & $script:EmbeddedBackendBlock @invokeParams 2>&1
-        }
-        else {
-            $output = & $script:BackendScript @invokeParams 2>&1
-        }
+        $output = & $script:BackendScript @invokeParams 2>&1
         return @($output | ForEach-Object { $_.ToString() })
     }
     catch {
@@ -409,6 +407,12 @@ $applyButton.Add_Click({
 
 $form.Add_Shown({
     Reload-Displays
+})
+
+$form.Add_FormClosed({
+    if ($script:EmbeddedBackendTempFile -and (Test-Path -LiteralPath $script:EmbeddedBackendTempFile)) {
+        Remove-Item -LiteralPath $script:EmbeddedBackendTempFile -Force -ErrorAction SilentlyContinue
+    }
 })
 
 [void]$form.ShowDialog()
