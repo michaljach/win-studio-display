@@ -7,6 +7,7 @@ param(
     [int]$Value,
 
     [string]$MonitorName = "Studio Display",
+    [int]$MonitorIndex,
     [switch]$All
 )
 
@@ -40,6 +41,10 @@ if ($PSBoundParameters.ContainsKey("Value")) {
         }
         default { }
     }
+}
+
+if ($PSBoundParameters.ContainsKey("MonitorIndex") -and $MonitorIndex -lt 0) {
+    throw "MonitorIndex must be 0 or higher."
 }
 
 $nativeCode = @"
@@ -142,6 +147,49 @@ function Convert-ToRawBrightness {
     return [uint32][Math]::Round($MinValue + (($MaxValue - $MinValue) * ($clampedPercent / 100.0)))
 }
 
+function Convert-UInt16ArrayToText {
+    param([uint16[]]$Data)
+
+    if (-not $Data) {
+        return ""
+    }
+
+    $characters = foreach ($value in $Data) {
+        if ($value -ne 0) {
+            [char]$value
+        }
+    }
+
+    return (-join $characters).Trim()
+}
+
+function Get-WmiFriendlyMonitorNames {
+    $names = New-Object "System.Collections.Generic.List[string]"
+
+    try {
+        $entries = Get-CimInstance -Namespace "root/wmi" -ClassName "WmiMonitorID" -ErrorAction Stop |
+            Where-Object { $_.Active -eq $true }
+
+        foreach ($entry in $entries) {
+            $friendly = Convert-UInt16ArrayToText -Data $entry.UserFriendlyName
+            if ([string]::IsNullOrWhiteSpace($friendly)) {
+                $manufacturer = Convert-UInt16ArrayToText -Data $entry.ManufacturerName
+                $productCode = Convert-UInt16ArrayToText -Data $entry.ProductCodeID
+                $friendly = ("{0} {1}" -f $manufacturer, $productCode).Trim()
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($friendly)) {
+                $names.Add($friendly) | Out-Null
+            }
+        }
+    }
+    catch {
+        # Best-effort enrichment only; keep raw DXVA names when WMI is unavailable.
+    }
+
+    return $names
+}
+
 $physicalMonitors = New-Object "System.Collections.Generic.List[NativeMethods+PHYSICAL_MONITOR]"
 $monitorInfo = New-Object "System.Collections.Generic.List[object]"
 
@@ -186,7 +234,10 @@ $enumCallback = [NativeMethods+MonitorEnumProc]{
         }
 
         $monitorInfo.Add([pscustomobject]@{
+            Index = -1
             Name = $physical.szPhysicalMonitorDescription.Trim()
+            RawName = $physical.szPhysicalMonitorDescription.Trim()
+            FriendlyName = $null
             Handle = $physical.hPhysicalMonitor
             SupportsBrightness = ($supportsBrightnessFlag -or $canReadBrightness)
             Min = $min
@@ -206,23 +257,65 @@ try {
         throw "No external monitors were discovered."
     }
 
+    $friendlyNames = Get-WmiFriendlyMonitorNames
+    for ($i = 0; $i -lt $monitorInfo.Count; $i++) {
+        $monitor = $monitorInfo[$i]
+        $monitor.Index = $i
+
+        $friendly = $null
+        if ($i -lt $friendlyNames.Count) {
+            $friendly = $friendlyNames[$i]
+        }
+
+        $rawName = $monitor.RawName
+        $displayName = $rawName
+        if (-not [string]::IsNullOrWhiteSpace($friendly)) {
+            $monitor.FriendlyName = $friendly
+            if ($rawName -match "(?i)generic|pnp|p2p" -or $rawName -eq $friendly) {
+                $displayName = $friendly
+            }
+            else {
+                $displayName = "{0} ({1})" -f $friendly, $rawName
+            }
+        }
+
+        $monitor.Name = $displayName
+    }
+
     if ($Command -eq "list") {
         foreach ($monitor in $monitorInfo) {
             $status = if ($monitor.SupportsBrightness) { "brightness-control" } else { "no-brightness-control" }
             $valueText = if ($null -eq $monitor.BrightnessPercent) { "n/a" } else { "$($monitor.BrightnessPercent)%" }
-            Write-Output ("{0} [{1}] current={2}" -f $monitor.Name, $status, $valueText)
+            Write-Output ("#{0} {1} [{2}] current={3}" -f $monitor.Index, $monitor.Name, $status, $valueText)
         }
         return
     }
 
     $targets = $monitorInfo | Where-Object { $_.SupportsBrightness }
-    if (-not $All) {
-        $targets = $targets | Where-Object { $_.Name -like "*$MonitorName*" }
+    if ($PSBoundParameters.ContainsKey("MonitorIndex")) {
+        $targets = $targets | Where-Object { $_.Index -eq $MonitorIndex }
+    }
+    elseif (-not $All) {
+        $escapedMonitorName = [System.Management.Automation.WildcardPattern]::Escape($MonitorName)
+        $namePattern = "*{0}*" -f $escapedMonitorName
+        $targets = $targets | Where-Object {
+            $_.Name -like $namePattern -or
+            $_.RawName -like $namePattern -or
+            ($_.FriendlyName -and $_.FriendlyName -like $namePattern)
+        }
     }
 
     if (-not $targets -or $targets.Count -eq 0) {
-        $nameMessage = if ($All) { "any detected monitor" } else { "monitor name containing '$MonitorName'" }
-        throw "No brightness-capable monitor matched $nameMessage. Run 'list' to inspect monitor names."
+        $nameMessage = if ($PSBoundParameters.ContainsKey("MonitorIndex")) {
+            "monitor index $MonitorIndex"
+        }
+        elseif ($All) {
+            "any detected monitor"
+        }
+        else {
+            "monitor name containing '$MonitorName'"
+        }
+        throw "No brightness-capable monitor matched $nameMessage. Run 'list' to inspect monitor names and indexes."
     }
 
     foreach ($target in $targets) {
@@ -238,12 +331,12 @@ try {
 
         switch ($Command) {
             "get" {
-                Write-Output ("{0}: {1}%" -f $target.Name, $currentPercent)
+                Write-Output ("#{0} {1}: {2}%" -f $target.Index, $target.Name, $currentPercent)
             }
             "set" {
                 $newRaw = Convert-ToRawBrightness -Percent $Value -MinValue $min -MaxValue $max
                 if ([NativeMethods]::SetMonitorBrightness($target.Handle, $newRaw)) {
-                    Write-Output ("{0}: {1}% -> {2}%" -f $target.Name, $currentPercent, $Value)
+                    Write-Output ("#{0} {1}: {2}% -> {3}%" -f $target.Index, $target.Name, $currentPercent, $Value)
                 } else {
                     Write-Warning "Failed to set brightness on '$($target.Name)'."
                 }
@@ -252,7 +345,7 @@ try {
                 $newPercent = [Math]::Min(100, $currentPercent + $Value)
                 $newRaw = Convert-ToRawBrightness -Percent $newPercent -MinValue $min -MaxValue $max
                 if ([NativeMethods]::SetMonitorBrightness($target.Handle, $newRaw)) {
-                    Write-Output ("{0}: {1}% -> {2}%" -f $target.Name, $currentPercent, $newPercent)
+                    Write-Output ("#{0} {1}: {2}% -> {3}%" -f $target.Index, $target.Name, $currentPercent, $newPercent)
                 } else {
                     Write-Warning "Failed to increase brightness on '$($target.Name)'."
                 }
@@ -261,7 +354,7 @@ try {
                 $newPercent = [Math]::Max(0, $currentPercent - $Value)
                 $newRaw = Convert-ToRawBrightness -Percent $newPercent -MinValue $min -MaxValue $max
                 if ([NativeMethods]::SetMonitorBrightness($target.Handle, $newRaw)) {
-                    Write-Output ("{0}: {1}% -> {2}%" -f $target.Name, $currentPercent, $newPercent)
+                    Write-Output ("#{0} {1}: {2}% -> {3}%" -f $target.Index, $target.Name, $currentPercent, $newPercent)
                 } else {
                     Write-Warning "Failed to decrease brightness on '$($target.Name)'."
                 }

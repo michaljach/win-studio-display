@@ -35,6 +35,10 @@ Open PowerShell and run from this folder:
 # Target another monitor name
 .\tools\studio-display-brightness.ps1 get -MonitorName "DELL"
 
+# Target by index (recommended when names are generic)
+.\tools\studio-display-brightness.ps1 get -MonitorIndex 0
+.\tools\studio-display-brightness.ps1 set 65 -MonitorIndex 0
+
 # Apply to all brightness-capable monitors
 .\tools\studio-display-brightness.ps1 set 40 -All
 ```
@@ -42,5 +46,6 @@ Open PowerShell and run from this folder:
 ## Notes
 
 - If `list` shows `no-brightness-control`, Windows cannot set brightness for that monitor through this API path.
+- If `list` shows generic names, use `-MonitorIndex` from the `list` output for reliable targeting.
 - Some USB-C/TB docks or adapters do not pass brightness control signals reliably.
 - If Apple Studio Display is not controllable, try direct USB-C/Thunderbolt connection and update Windows graphics/monitor drivers.
