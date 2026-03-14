@@ -6,7 +6,8 @@ param(
     [Parameter(Position = 1)]
     [int]$Value,
 
-    [string]$Serial
+    [string]$Serial,
+    [int]$Index
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +19,14 @@ if ($env:OS -ne "Windows_NT") {
 
 if (("set", "inc", "dec") -contains $Command -and -not $PSBoundParameters.ContainsKey("Value")) {
     throw "The '$Command' command requires a numeric value."
+}
+
+if ($PSBoundParameters.ContainsKey("Serial") -and $PSBoundParameters.ContainsKey("Index")) {
+    throw "Use either -Serial or -Index, not both."
+}
+
+if ($PSBoundParameters.ContainsKey("Index") -and $Index -lt 0) {
+    throw "Index must be 0 or higher."
 }
 
 if ($PSBoundParameters.ContainsKey("Value")) {
@@ -608,6 +617,14 @@ function Get-StudioDisplays {
         ($PreferredInterfaceNumbers -contains [int]$_.InterfaceNumber)
     })
     $devices = if ($preferredDevices.Count -gt 0) { $preferredDevices } else { $brightnessDevices }
+
+    if ($PSBoundParameters.ContainsKey("Index")) {
+        if ($Index -ge $devices.Count) {
+            throw "Index $Index is out of range. Run 'list' to see valid indexes."
+        }
+
+        return @($devices[$Index])
+    }
 
     if ([string]::IsNullOrWhiteSpace($Serial)) {
         return $devices

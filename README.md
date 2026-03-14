@@ -13,6 +13,9 @@ It follows the same HID approach used by `himbeles/studi` / `asdbctl`:
 
 - `tools/studio-display-brightness.ps1`
 - `tools/studio-display-brightness.cmd`
+- `tools/studio-display-brightness-ui.ps1`
+- `tools/studio-display-brightness-ui.cmd`
+- `tools/build-ui-exe.ps1`
 
 ## Requirements
 
@@ -39,6 +42,10 @@ It follows the same HID approach used by `himbeles/studi` / `asdbctl`:
 # Target a specific display serial (optional)
 .\tools\studio-display-brightness.ps1 get -Serial "YOUR_SERIAL"
 .\tools\studio-display-brightness.ps1 set 65 -Serial "YOUR_SERIAL"
+
+# Target by list index (recommended for UI integration)
+.\tools\studio-display-brightness.ps1 get -Index 0
+.\tools\studio-display-brightness.ps1 set 65 -Index 0
 ```
 
 CMD wrapper:
@@ -48,8 +55,44 @@ tools\studio-display-brightness.cmd list
 tools\studio-display-brightness.cmd set 60
 ```
 
+## Windows UI
+
+Launch the simple GUI:
+
+```powershell
+.\tools\studio-display-brightness-ui.ps1
+```
+
+or:
+
+```cmd
+tools\studio-display-brightness-ui.cmd
+```
+
+The UI provides:
+
+- display picker
+- brightness slider (0-100)
+- refresh button
+- +/- 10 controls
+- apply button
+
+## Build EXE
+
+Run on Windows PowerShell:
+
+```powershell
+.\tools\build-ui-exe.ps1
+```
+
+Output:
+
+- `dist\StudioDisplayBrightnessUI.exe`
+- `dist\studio-display-brightness.ps1` (backend script placed next to the EXE)
+
 ## Notes
 
 - Generic monitor names in Windows settings are expected and do not affect this tool.
 - `list` includes `pid` and `mi` so new hardware revisions can be identified quickly.
 - If no device is found, try direct connection (some docks/adapters block the required HID path).
+- If you see PowerShell execution-policy warnings, launch via the provided `.cmd` files.

@@ -1,18 +1,15 @@
 # Task Plan
 
-- [x] Investigate why newly released Studio Display XDR is not detected by strict PID/interface filters.
-- [x] Relax HID discovery to scan all Apple HID devices and auto-select brightness-capable endpoints.
-- [x] Surface `pid` and `mi` in `list` output for hardware diagnostics.
-- [x] Update README for adaptive hardware detection behavior.
-- [x] Improve HID open/probe strategy to handle endpoints that reject read-write opens during discovery.
-- [x] Eliminate persistent `Add-Type` collisions by compiling native helper types with unique per-run names.
+- [x] Design a minimal Windows GUI flow for brightness control backed by the existing CLI script.
+- [x] Implement a PowerShell WinForms UI app with slider, refresh, and apply controls.
+- [x] Add Windows launcher and an EXE build script (`ps2exe`) that outputs a distributable executable.
+- [x] Update README with GUI usage and EXE build steps.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
 
-- Discovery no longer hard-fails on a single product/interface pair; the script now enumerates all Apple HID devices and probes brightness feature report support.
-- Selection prefers known Studio Display IDs/interfaces but falls back to any Apple HID endpoint that accepts report id 1 and returns brightness.
-- `list` now prints `pid` and `mi` to help diagnose newly released hardware revisions.
-- HID probing now uses best-effort handle opening (read/write then zero-access) and path VID/PID parsing fallback when HID attributes are unavailable.
-- Native C# helper types now use unique names per script execution, avoiding duplicate type-name errors in reused PowerShell sessions.
-- Could not run runtime validation in this environment because Windows PowerShell is unavailable on host; changes were validated via static review.
+- Added `tools/studio-display-brightness-ui.ps1` with a simple WinForms UI (display picker, slider, refresh, +/-10, apply).
+- Added `tools/studio-display-brightness-ui.cmd` launcher and `tools/build-ui-exe.ps1` to generate `dist/StudioDisplayBrightnessUI.exe` via `ps2exe`.
+- Extended backend CLI with `-Index` targeting to support reliable UI selection.
+- Updated `README.md` with GUI usage and EXE build instructions.
+- Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
