@@ -41,6 +41,10 @@ if ($PSBoundParameters.ContainsKey("Value")) {
     }
 }
 
+$typeSuffix = [Guid]::NewGuid().ToString("N")
+$deviceTypeName = "StudioDisplayDevice_$typeSuffix"
+$hidTypeName = "StudioDisplayHid_$typeSuffix"
+
 $nativeCode = @"
 using System;
 using System.Collections.Generic;
@@ -550,20 +554,9 @@ public static class StudioDisplayHid
 }
 "@
 
-$hasDeviceType = [System.Management.Automation.PSTypeName]"StudioDisplayDevice"
-$hasHidType = [System.Management.Automation.PSTypeName]"StudioDisplayHid"
-
-if (-not $hasDeviceType.Type -or -not $hasHidType.Type) {
-    try {
-        Add-Type -TypeDefinition $nativeCode -Language CSharp -ErrorAction Stop
-    }
-    catch {
-        $message = $_.Exception.Message
-        if ($message -notmatch "already exists") {
-            throw
-        }
-    }
-}
+$nativeCode = $nativeCode.Replace("StudioDisplayDevice", $deviceTypeName).Replace("StudioDisplayHid", $hidTypeName)
+Add-Type -TypeDefinition $nativeCode -Language CSharp -ErrorAction Stop
+$StudioDisplayHidType = [type]$hidTypeName
 
 $VendorId = 0x05AC
 $PreferredProductIds = @(0x1114, 0x1115, 0x1116, 0x1117)
@@ -594,7 +587,7 @@ function Convert-ToRaw {
 }
 
 function Get-StudioDisplays {
-    $allAppleHidDevices = [StudioDisplayHid]::Enumerate([uint16]$VendorId)
+    $allAppleHidDevices = $StudioDisplayHidType::Enumerate([uint16]$VendorId)
     if (-not $allAppleHidDevices -or $allAppleHidDevices.Count -eq 0) {
         throw "No Apple HID devices found (VID_05AC)."
     }
@@ -645,7 +638,7 @@ if ($Command -eq "list") {
 
 foreach ($device in $targets) {
     $serialText = if ([string]::IsNullOrWhiteSpace($device.Serial)) { "unknown" } else { $device.Serial }
-    $currentRaw = [StudioDisplayHid]::ReadBrightnessRaw($device.Path)
+    $currentRaw = $StudioDisplayHidType::ReadBrightnessRaw($device.Path)
     $currentPercent = Convert-ToPercent -Raw $currentRaw
 
     switch ($Command) {
@@ -655,22 +648,22 @@ foreach ($device in $targets) {
         "set" {
             $targetPercent = $Value
             $targetRaw = Convert-ToRaw -Percent $targetPercent
-            [StudioDisplayHid]::WriteBrightnessRaw($device.Path, $targetRaw)
-            $newPercent = Convert-ToPercent -Raw ([StudioDisplayHid]::ReadBrightnessRaw($device.Path))
+            $StudioDisplayHidType::WriteBrightnessRaw($device.Path, $targetRaw)
+            $newPercent = Convert-ToPercent -Raw ($StudioDisplayHidType::ReadBrightnessRaw($device.Path))
             Write-Output ("serial={0} brightness={1}% -> {2}%" -f $serialText, $currentPercent, $newPercent)
         }
         "inc" {
             $targetPercent = [Math]::Min(100, $currentPercent + $Value)
             $targetRaw = Convert-ToRaw -Percent $targetPercent
-            [StudioDisplayHid]::WriteBrightnessRaw($device.Path, $targetRaw)
-            $newPercent = Convert-ToPercent -Raw ([StudioDisplayHid]::ReadBrightnessRaw($device.Path))
+            $StudioDisplayHidType::WriteBrightnessRaw($device.Path, $targetRaw)
+            $newPercent = Convert-ToPercent -Raw ($StudioDisplayHidType::ReadBrightnessRaw($device.Path))
             Write-Output ("serial={0} brightness={1}% -> {2}%" -f $serialText, $currentPercent, $newPercent)
         }
         "dec" {
             $targetPercent = [Math]::Max(0, $currentPercent - $Value)
             $targetRaw = Convert-ToRaw -Percent $targetPercent
-            [StudioDisplayHid]::WriteBrightnessRaw($device.Path, $targetRaw)
-            $newPercent = Convert-ToPercent -Raw ([StudioDisplayHid]::ReadBrightnessRaw($device.Path))
+            $StudioDisplayHidType::WriteBrightnessRaw($device.Path, $targetRaw)
+            $newPercent = Convert-ToPercent -Raw ($StudioDisplayHidType::ReadBrightnessRaw($device.Path))
             Write-Output ("serial={0} brightness={1}% -> {2}%" -f $serialText, $currentPercent, $newPercent)
         }
         default {

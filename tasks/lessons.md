@@ -7,3 +7,4 @@
 - During HID discovery, do not require read/write opens or HID attributes to always succeed; add zero-access open and path VID/PID fallback to avoid false "device not found" results.
 - In PowerShell scripts that use `Add-Type`, guard against redefinition when users run the script repeatedly in the same session.
 - For `Add-Type` collision fixes, use both a pre-check and a catch for "already exists" so false negatives in type detection do not break repeated runs.
+- If `Add-Type` collisions persist across session reuse, generate unique helper type names per run and invoke them through a resolved `[type]` handle.
