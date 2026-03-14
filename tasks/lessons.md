@@ -18,3 +18,4 @@
 - In child-process invocation, pass `-Value` as an explicit named argument (not positional) to prevent command/value/index ambiguity in compiled-host edge cases.
 - For native-process calls from PowerShell, splat a real variable array (`@args`) instead of inline `@(...)` and include executed-command text in error output for fast diagnosis.
 - If CLI behavior is correct but UI is not, align UI target selection with CLI defaults (prefer serial/no selector) before relying on volatile index-based routing.
+- When launching script files from a child PowerShell process, pass `-Command` to the script explicitly (not positional command token) to avoid parameter-position drift.

@@ -140,6 +140,7 @@ function Invoke-Backend {
 
         $cliArgs.Add("-File")
         $cliArgs.Add($script:BackendScript)
+        $cliArgs.Add("-Command")
         $cliArgs.Add($Command)
 
         if ($PSBoundParameters.ContainsKey("Value")) {

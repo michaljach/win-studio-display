@@ -14,6 +14,7 @@
 - [x] Force backend `-Value` to be passed as named CLI arg from UI child process.
 - [x] Fix native-process argument splatting and add executed-command diagnostics to backend error output.
 - [x] Update UI selector strategy to prefer serial targeting and avoid index-only routing for single-display setups.
+- [x] Pass backend `-Command` as named argument in UI child-process invocation.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -32,4 +33,5 @@
 - UI child-process invocation now passes `-Value` explicitly as a named argument for `set`, removing remaining positional parsing ambiguity.
 - Native child-process invocation now uses variable-array splatting (`@nativeArgs`) and appends the exact executed command line when backend returns non-zero.
 - UI now prefers `-Serial` targeting when available and only uses `-Index` if multiple unnamed displays exist, aligning behavior with successful CLI usage.
+- UI child-process invocation now also passes backend `-Command` explicitly as named argument to remove command-position ambiguity.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.
