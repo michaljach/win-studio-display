@@ -550,7 +550,9 @@ public static class StudioDisplayHid
 }
 "@
 
-Add-Type -TypeDefinition $nativeCode -Language CSharp
+if (-not ("StudioDisplayDevice" -as [type]) -or -not ("StudioDisplayHid" -as [type])) {
+    Add-Type -TypeDefinition $nativeCode -Language CSharp
+}
 
 $VendorId = 0x05AC
 $PreferredProductIds = @(0x1114, 0x1115, 0x1116, 0x1117)

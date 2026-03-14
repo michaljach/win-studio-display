@@ -5,3 +5,4 @@
 - When the user asks to "do the same in our script," implement the external project's core logic directly rather than wrapping/downloading their binary.
 - Do not hardcode a single product/interface tuple for Apple displays; probe all Apple HID devices for brightness report support to handle new hardware revisions.
 - During HID discovery, do not require read/write opens or HID attributes to always succeed; add zero-access open and path VID/PID fallback to avoid false "device not found" results.
+- In PowerShell scripts that use `Add-Type`, guard against redefinition when users run the script repeatedly in the same session.
