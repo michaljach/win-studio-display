@@ -45,6 +45,7 @@ $nativeCode = @"
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using System.Text;
@@ -53,6 +54,8 @@ public class StudioDisplayDevice
 {
     public string Path { get; set; }
     public string Serial { get; set; }
+    public ushort ProductId { get; set; }
+    public int InterfaceNumber { get; set; }
     public uint? BrightnessRaw { get; set; }
 }
 
@@ -158,7 +161,7 @@ public static class StudioDisplayHid
         uint dwFlagsAndAttributes,
         IntPtr hTemplateFile);
 
-    public static List<StudioDisplayDevice> Enumerate(ushort vendorId, ushort productId, int interfaceNumber)
+    public static List<StudioDisplayDevice> Enumerate(ushort vendorId)
     {
         var devices = new List<StudioDisplayDevice>();
 
@@ -212,16 +215,6 @@ public static class StudioDisplayHid
                     continue;
                 }
 
-                if (interfaceNumber >= 0)
-                {
-                    string needle = "&mi_" + interfaceNumber.ToString("X2").ToLowerInvariant();
-                    if (path.ToLowerInvariant().IndexOf(needle, StringComparison.Ordinal) < 0)
-                    {
-                        index++;
-                        continue;
-                    }
-                }
-
                 using (SafeFileHandle handle = OpenPath(path, true))
                 {
                     if (handle.IsInvalid)
@@ -238,13 +231,14 @@ public static class StudioDisplayHid
                         continue;
                     }
 
-                    if (attributes.VendorID != vendorId || attributes.ProductID != productId)
+                    if (attributes.VendorID != vendorId)
                     {
                         index++;
                         continue;
                     }
 
                     string serial = ReadSerial(handle);
+                    int interfaceNumber = ExtractInterfaceNumber(path);
                     uint brightness;
                     uint? brightnessRaw = TryReadBrightness(handle, out brightness) ? (uint?)brightness : null;
 
@@ -252,6 +246,8 @@ public static class StudioDisplayHid
                     {
                         Path = path,
                         Serial = serial,
+                        ProductId = attributes.ProductID,
+                        InterfaceNumber = interfaceNumber,
                         BrightnessRaw = brightnessRaw
                     });
                 }
@@ -346,14 +342,38 @@ public static class StudioDisplayHid
         brightness = BitConverter.ToUInt32(report, 1);
         return true;
     }
+
+    private static int ExtractInterfaceNumber(string path)
+    {
+        if (String.IsNullOrWhiteSpace(path))
+        {
+            return -1;
+        }
+
+        string lower = path.ToLowerInvariant();
+        int marker = lower.IndexOf("&mi_", StringComparison.Ordinal);
+        if (marker < 0 || marker + 6 > lower.Length)
+        {
+            return -1;
+        }
+
+        string hexPart = lower.Substring(marker + 4, 2);
+        int parsed;
+        if (!Int32.TryParse(hexPart, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parsed))
+        {
+            return -1;
+        }
+
+        return parsed;
+    }
 }
 "@
 
 Add-Type -TypeDefinition $nativeCode -Language CSharp
 
 $VendorId = 0x05AC
-$ProductId = 0x1114
-$InterfaceNumber = 0x07
+$PreferredProductIds = @(0x1114, 0x1115, 0x1116, 0x1117)
+$PreferredInterfaceNumbers = @(0x07, 0x0C)
 $MinBrightnessRaw = 400
 $MaxBrightnessRaw = 60000
 
@@ -380,10 +400,27 @@ function Convert-ToRaw {
 }
 
 function Get-StudioDisplays {
-    $devices = [StudioDisplayHid]::Enumerate([uint16]$VendorId, [uint16]$ProductId, $InterfaceNumber)
-    if (-not $devices -or $devices.Count -eq 0) {
-        throw "No Apple Studio Display HID interface found (VID_05AC, PID_1114, MI_07)."
+    $allAppleHidDevices = [StudioDisplayHid]::Enumerate([uint16]$VendorId)
+    if (-not $allAppleHidDevices -or $allAppleHidDevices.Count -eq 0) {
+        throw "No Apple HID devices found (VID_05AC)."
     }
+
+    $brightnessDevices = @($allAppleHidDevices | Where-Object { $null -ne $_.BrightnessRaw })
+    if ($brightnessDevices.Count -eq 0) {
+        $discovered = $allAppleHidDevices | ForEach-Object {
+            $serialText = if ([string]::IsNullOrWhiteSpace($_.Serial)) { "unknown" } else { $_.Serial }
+            $miText = if ($_.InterfaceNumber -lt 0) { "unknown" } else { ("0x{0:X2}" -f [int]$_.InterfaceNumber) }
+            "PID=0x{0:X4}, MI={1}, serial={2}" -f [int]$_.ProductId, $miText, $serialText
+        }
+        $joined = ($discovered -join "; ")
+        throw "Found Apple HID devices but none accepted brightness report id 1. Devices: $joined"
+    }
+
+    $preferredDevices = @($brightnessDevices | Where-Object {
+        ($PreferredProductIds -contains [int]$_.ProductId) -or
+        ($PreferredInterfaceNumbers -contains [int]$_.InterfaceNumber)
+    })
+    $devices = if ($preferredDevices.Count -gt 0) { $preferredDevices } else { $brightnessDevices }
 
     if ([string]::IsNullOrWhiteSpace($Serial)) {
         return $devices
@@ -403,8 +440,10 @@ if ($Command -eq "list") {
     $index = 0
     foreach ($device in $targets) {
         $serialText = if ([string]::IsNullOrWhiteSpace($device.Serial)) { "unknown" } else { $device.Serial }
+        $pidText = "0x{0:X4}" -f [int]$device.ProductId
+        $miText = if ($device.InterfaceNumber -lt 0) { "unknown" } else { "0x{0:X2}" -f [int]$device.InterfaceNumber }
         $brightnessText = if ($null -eq $device.BrightnessRaw) { "unknown" } else { "$(Convert-ToPercent -Raw $device.BrightnessRaw)%" }
-        Write-Output ("#{0} serial={1} brightness={2}" -f $index, $serialText, $brightnessText)
+        Write-Output ("#{0} serial={1} pid={2} mi={3} brightness={4}" -f $index, $serialText, $pidText, $miText, $brightnessText)
         $index++
     }
     return

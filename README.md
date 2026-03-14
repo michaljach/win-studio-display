@@ -5,8 +5,7 @@ Small PowerShell CLI that directly controls **Apple Studio Display** brightness 
 It follows the same HID approach used by `himbeles/studi` / `asdbctl`:
 
 - Vendor ID: `0x05AC` (Apple)
-- Product ID: `0x1114` (Studio Display)
-- Interface: `MI_07`
+- Product ID/interface are auto-detected from Apple HID devices (prefers known Studio Display combos like `PID 0x1114`, `MI_07`)
 - HID report: 7 bytes (`report id 1` + 4-byte little-endian brightness + 2 padding bytes)
 - Raw brightness range: `400..60000` mapped to `0..100%`
 
@@ -24,7 +23,7 @@ It follows the same HID approach used by `himbeles/studi` / `asdbctl`:
 ## Usage
 
 ```powershell
-# List detected Studio Displays (serial + brightness)
+# List detected Studio Displays (serial + pid + interface + brightness)
 .\tools\studio-display-brightness.ps1 list
 
 # Get brightness
@@ -52,4 +51,5 @@ tools\studio-display-brightness.cmd set 60
 ## Notes
 
 - Generic monitor names in Windows settings are expected and do not affect this tool.
+- `list` includes `pid` and `mi` so new hardware revisions can be identified quickly.
 - If no device is found, try direct connection (some docks/adapters block the required HID path).
