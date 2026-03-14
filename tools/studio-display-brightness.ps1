@@ -550,8 +550,19 @@ public static class StudioDisplayHid
 }
 "@
 
-if (-not ("StudioDisplayDevice" -as [type]) -or -not ("StudioDisplayHid" -as [type])) {
-    Add-Type -TypeDefinition $nativeCode -Language CSharp
+$hasDeviceType = [System.Management.Automation.PSTypeName]"StudioDisplayDevice"
+$hasHidType = [System.Management.Automation.PSTypeName]"StudioDisplayHid"
+
+if (-not $hasDeviceType.Type -or -not $hasHidType.Type) {
+    try {
+        Add-Type -TypeDefinition $nativeCode -Language CSharp -ErrorAction Stop
+    }
+    catch {
+        $message = $_.Exception.Message
+        if ($message -notmatch "already exists") {
+            throw
+        }
+    }
 }
 
 $VendorId = 0x05AC
