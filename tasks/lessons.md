@@ -24,3 +24,4 @@
 - Prefer direct script-path invocation with named splatted params for backend calls in UI when possible; avoid unnecessary host-process argument layers.
 - If backend CLI works but UI still fails, mirror the exact CLI token order (`set <value> [-Index n|-Serial s]`) in UI invocation instead of abstract parameter maps.
 - For `set`, accept both percent and raw numeric brightness forms to harden against host-dependent argument/value transformations.
+- When a specific backend command path (`set`) remains unstable in compiled UI hosts, switch UI behavior to equivalent stable primitives (`inc/dec` delta) to keep functionality reliable.

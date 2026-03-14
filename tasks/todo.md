@@ -20,6 +20,7 @@
 - [x] Simplify UI backend invocation to direct script-path call with named splatted parameters.
 - [x] Align UI backend invocation with literal CLI token order for set/get paths.
 - [x] Add backend tolerance for raw brightness numeric inputs in `set` path.
+- [x] Route UI Apply through `inc/dec` delta commands to avoid fragile `set` binding paths.
 - [x] Verify script integrity (best-effort in current environment) and document results.
 
 ## Review
@@ -44,4 +45,5 @@
 - UI backend calls now execute the backend script path directly with named splatted parameters, reducing host argument parsing edge cases.
 - UI backend call construction now mirrors manual CLI token order (`set <value> ...`), matching the known-working command-line behavior.
 - Backend `set` now accepts raw-style numeric values (400..60000 and 0..65535) and converts them to percent before validation, preventing false out-of-range errors.
+- UI Apply now computes target delta and uses backend `inc`/`dec` commands instead of `set`, bypassing the persistent `set` argument-binding failure in EXE-hosted runs.
 - Runtime validation could not be executed in this environment because Windows PowerShell is unavailable; static review completed.

@@ -235,7 +235,21 @@ function Set-BrightnessForDisplay {
     )
 
     $selector = Get-SelectorArgs -Display $Display
-    $null = Invoke-Backend -Command "set" -Value $Value @selector
+    $current = Get-BrightnessForDisplay -Display $Display
+    $target = [Math]::Max(0, [Math]::Min(100, $Value))
+
+    if ($target -eq $current) {
+        return
+    }
+
+    if ($target -gt $current) {
+        $step = $target - $current
+        $null = Invoke-Backend -Command "inc" -Value $step @selector
+    }
+    else {
+        $step = $current - $target
+        $null = Invoke-Backend -Command "dec" -Value $step @selector
+    }
 }
 
 $form = New-Object System.Windows.Forms.Form
