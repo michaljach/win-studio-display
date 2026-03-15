@@ -4,6 +4,10 @@ Control **Apple Studio Display brightness on Windows** using a PowerShell CLI, a
 
 If you searched for terms like _studio display brightness windows_, _apple studio display windows brightness control_, or _studio display brightness powershell_, this is the tool.
 
+## Preview
+
+![Studio Display Brightness Windows GUI preview](docs/preview.png)
+
 ## Why this tool
 
 - Direct HID brightness control for Apple Studio Display on Windows 10/11.
