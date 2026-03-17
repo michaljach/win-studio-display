@@ -84,3 +84,16 @@
 - Updated GitHub repo description to: `Control Apple Studio Display brightness on Windows with a PowerShell CLI, WinForms GUI, and single-file EXE via native USB HID feature reports.`
 - Added GitHub topics: `apple-studio-display`, `studio-display`, `brightness-control`, `windows`, `powershell`, `usb-hid`, `monitor-control`, `winforms`, `cli-tool`, `ps2exe`.
 - Verified both README diff and live GitHub metadata via `gh repo view`.
+
+## 2026-03-17 Startup Brightness Sync
+
+- [x] Confirm current UI startup flow and identify where startup brightness sync should run.
+- [x] Update UI startup behavior to read display brightness and apply it on app launch.
+- [x] Verify updated script logic via static review and document any runtime limitations.
+
+## 2026-03-17 Startup Brightness Sync Review
+
+- Updated `tools/studio-display-brightness-ui.ps1` startup flow with `Sync-StartupBrightness`, which reads the selected display brightness on launch, applies that value back to the display, then refreshes UI state.
+- Wired startup sync into the form shown event so the behavior runs automatically when the app opens.
+- Bumped UI build id to `2026-03-17.1` and documented startup-sync behavior in `README.md`.
+- Runtime verification is not possible in this environment because PowerShell/WinForms are unavailable on macOS; changes were validated by static code review.

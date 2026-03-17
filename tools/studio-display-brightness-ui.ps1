@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$script:UiBuildId = "2026-03-14.1"
+$script:UiBuildId = "2026-03-17.1"
 
 if ($env:OS -ne "Windows_NT") {
     throw "This UI tool only works on Windows."
@@ -428,6 +428,28 @@ function Refresh-CurrentBrightness {
     }
 }
 
+function Sync-StartupBrightness {
+    $selected = Get-SelectedDisplay
+    if ($null -eq $selected) {
+        return
+    }
+
+    try {
+        $startupBrightness = Get-BrightnessForDisplay -Display $selected
+        $startupBrightness = [Math]::Max(0, [Math]::Min(100, $startupBrightness))
+
+        $brightnessSlider.Value = $startupBrightness
+        $valueLabel.Text = "$startupBrightness%"
+
+        Set-BrightnessForDisplay -Display $selected -Value $startupBrightness
+        Refresh-CurrentBrightness
+        Set-Status -Message ("Startup brightness synced at {0}%" -f $startupBrightness)
+    }
+    catch {
+        Report-UiError -Message $_.Exception.Message
+    }
+}
+
 function Reload-Displays {
     $previousIndex = $null
     $current = Get-SelectedDisplay
@@ -528,6 +550,7 @@ $applyButton.Add_Click({
 $form.Add_Shown({
     Write-UiLog -Message ("UI build={0} startup backend={1}" -f $script:UiBuildId, $script:BackendScript)
     Reload-Displays
+    Sync-StartupBrightness
 })
 
 $form.Add_FormClosed({

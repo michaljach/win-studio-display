@@ -108,6 +108,7 @@ tools\studio-display-brightness-ui.cmd
 GUI includes:
 
 - Display picker
+- Startup brightness sync (read + apply current display brightness on launch)
 - Brightness slider (0-100)
 - Refresh button
 - +/-10 quick step buttons
