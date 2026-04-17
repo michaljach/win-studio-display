@@ -1,3 +1,8 @@
+#_pragma noConsole
+#_pragma title "Studio Display Brightness"
+#_pragma product "Studio Display Brightness"
+#_pragma company "win-studio-display"
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -10,97 +15,8 @@ if ($env:OS -ne "Windows_NT") {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-if (Get-Variable -Name EmbeddedBackendScript -ErrorAction SilentlyContinue) {
-    $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript).Value
-}
-elseif (Get-Variable -Name EmbeddedBackendScript -Scope Script -ErrorAction SilentlyContinue) {
-    $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript -Scope Script).Value
-}
-elseif (Get-Variable -Name EmbeddedBackendScript -Scope Global -ErrorAction SilentlyContinue) {
-    $script:EmbeddedBackendScript = (Get-Variable -Name EmbeddedBackendScript -Scope Global).Value
-}
-else {
-    $script:EmbeddedBackendScript = $null
-}
-
-function Resolve-BackendScript {
-    if (-not [string]::IsNullOrWhiteSpace($script:EmbeddedBackendScript)) {
-        return "__EMBEDDED__"
-    }
-
-    $baseDirs = New-Object System.Collections.Generic.List[string]
-
-    if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
-        $baseDirs.Add($PSScriptRoot)
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($PSCommandPath)) {
-        $commandDir = Split-Path -Parent $PSCommandPath
-        if (-not [string]::IsNullOrWhiteSpace($commandDir)) {
-            $baseDirs.Add($commandDir)
-        }
-    }
-
-    if ($MyInvocation -and $MyInvocation.MyCommand -and -not [string]::IsNullOrWhiteSpace($MyInvocation.MyCommand.Path)) {
-        $invocationDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-        if (-not [string]::IsNullOrWhiteSpace($invocationDir)) {
-            $baseDirs.Add($invocationDir)
-        }
-    }
-
-    $appBaseDir = [System.AppContext]::BaseDirectory
-    if (-not [string]::IsNullOrWhiteSpace($appBaseDir)) {
-        $baseDirs.Add($appBaseDir)
-    }
-
-    $currentDir = (Get-Location).Path
-    if (-not [string]::IsNullOrWhiteSpace($currentDir)) {
-        $baseDirs.Add($currentDir)
-    }
-
-    $seen = @{}
-    $uniqueDirs = @()
-    foreach ($dir in $baseDirs) {
-        $normalized = $dir.TrimEnd([char[]]"\\/")
-        if ([string]::IsNullOrWhiteSpace($normalized)) {
-            continue
-        }
-
-        if ($normalized -match '^[A-Za-z]:$') {
-            $normalized = "$normalized\\"
-        }
-
-        if (-not $seen.ContainsKey($normalized)) {
-            $seen[$normalized] = $true
-            $uniqueDirs += $normalized
-        }
-    }
-
-    $candidates = @()
-    foreach ($baseDir in $uniqueDirs) {
-        $candidates += (Join-Path $baseDir "studio-display-brightness.ps1")
-        $candidates += (Join-Path $baseDir "tools/studio-display-brightness.ps1")
-
-        $parentDir = Split-Path -Parent $baseDir
-        if (-not [string]::IsNullOrWhiteSpace($parentDir)) {
-            $candidates += (Join-Path $parentDir "tools/studio-display-brightness.ps1")
-        }
-    }
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate) {
-            return (Resolve-Path -LiteralPath $candidate).Path
-        }
-    }
-
-    $searched = ($uniqueDirs -join ", ")
-    throw "Could not locate studio-display-brightness.ps1 backend script. Searched base directories: $searched"
-}
-
-$script:BackendScript = Resolve-BackendScript
 $script:Displays = @()
 $script:Loading = $false
-$script:EmbeddedBackendTempFile = $null
 $script:ErrorLogPath = Join-Path ([IO.Path]::GetTempPath()) "studio-display-brightness-ui.log"
 
 function Write-UiLog {
@@ -111,12 +27,6 @@ function Write-UiLog {
         Add-Content -LiteralPath $script:ErrorLogPath -Value "[$stamp] $Message"
     }
     catch { }
-}
-
-if ($script:BackendScript -eq "__EMBEDDED__") {
-    $script:EmbeddedBackendTempFile = Join-Path ([IO.Path]::GetTempPath()) ("studio-display-brightness-backend-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
-    Set-Content -LiteralPath $script:EmbeddedBackendTempFile -Value $script:EmbeddedBackendScript -Encoding UTF8
-    $script:BackendScript = $script:EmbeddedBackendTempFile
 }
 
 function Invoke-Backend {
@@ -155,10 +65,11 @@ function Invoke-Backend {
                 $_
             }
         }
-        $debugCommand = "{0} {1}" -f $script:BackendScript, ($renderedArgs -join " ")
+        $backendPathForLog = Join-Path $PSScriptRoot "studio-display-brightness.ps1"
+        $debugCommand = "{0} {1}" -f $backendPathForLog, ($renderedArgs -join " ")
 
         Write-UiLog -Message ("UI build={0} invoking: {1}" -f $script:UiBuildId, $debugCommand)
-        $output = & $script:BackendScript @nativeArgs 2>&1
+        $output = & $PSScriptRoot/studio-display-brightness.ps1 @nativeArgs 2>&1
         $textOutput = @($output | ForEach-Object { $_.ToString() })
         if ($textOutput.Count -gt 0) {
             Write-UiLog -Message ("UI build={0} output: {1}" -f $script:UiBuildId, ($textOutput -join " | "))
@@ -174,7 +85,8 @@ function Invoke-Backend {
                 $_
             }
         }
-        $debugCommand = "{0} {1}" -f $script:BackendScript, ($renderedArgs -join " ")
+        $backendPathForLog = Join-Path $PSScriptRoot "studio-display-brightness.ps1"
+        $debugCommand = "{0} {1}" -f $backendPathForLog, ($renderedArgs -join " ")
         Write-UiLog -Message ("UI build={0} error: {1}" -f $script:UiBuildId, $_.Exception.Message)
         throw "$($_.Exception.Message)`nCommand: $debugCommand`nUI build: $script:UiBuildId"
     }
@@ -548,15 +460,9 @@ $applyButton.Add_Click({
 })
 
 $form.Add_Shown({
-    Write-UiLog -Message ("UI build={0} startup backend={1}" -f $script:UiBuildId, $script:BackendScript)
+    Write-UiLog -Message ("UI build={0} startup backend={1}" -f $script:UiBuildId, (Join-Path $PSScriptRoot "studio-display-brightness.ps1"))
     Reload-Displays
     Sync-StartupBrightness
-})
-
-$form.Add_FormClosed({
-    if ($script:EmbeddedBackendTempFile -and (Test-Path -LiteralPath $script:EmbeddedBackendTempFile)) {
-        Remove-Item -LiteralPath $script:EmbeddedBackendTempFile -Force -ErrorAction SilentlyContinue
-    }
 })
 
 [void]$form.ShowDialog()
