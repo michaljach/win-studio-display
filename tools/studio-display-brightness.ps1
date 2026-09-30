@@ -113,7 +113,8 @@ if ($PSBoundParameters.ContainsKey("Value")) {
 
     switch ($Command) {
         "set" {
-            if ($Value -lt 0 -or $Value -gt 100) {
+            # Compare the int: $Value is [string], and "95" -gt 100 is true as a string comparison.
+            if ($parsedValue -lt 0 -or $parsedValue -gt 100) {
                 throw "For 'set', value must be between 0 and 100."
             }
         }
