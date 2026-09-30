@@ -30,4 +30,7 @@
 - If there is a mismatch between CLI and UI behavior on one display, avoid `-Index` endpoint pinning for unknown-serial devices; let backend default selection target all matching endpoints like CLI.
 - For `inc/dec` fallback paths, split large deltas into <=100 chunks and clamp parsed brightness to 0..100 to satisfy backend step constraints.
 - Harden backend `inc/dec` value handling by normalizing to 1..100 instead of throwing, since UI hosts can still transform numeric inputs unexpectedly.
+- In PowerShell, never range-check a `[string]`-typed parameter after assigning a number to it: the variable stays a string and `-lt`/`-gt` compare lexically (`"95" -gt 100` is true). Validate the parsed int. This was the real cause of the long "set value must be between 0 and 100" chase.
+- For resident Windows UI, prefer a small C# app compiled with the in-box .NET Framework `csc.exe` over ps2exe + child PowerShell processes: one process, no argument-binding layers, ~30 MB.
+- In PowerShell P/Invoke, `$null` passed to a `string` parameter arrives as `""`; declare optional string params (e.g. FindWindow's class) as `IntPtr` and pass `[IntPtr]::Zero`.
 - When users ask for better SEO/tool discoverability, update both README keyword framing and live GitHub metadata (description + topics), then verify with `gh repo view`.

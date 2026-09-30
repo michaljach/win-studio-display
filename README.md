@@ -18,15 +18,39 @@ If you searched for terms like _studio display brightness windows_, _apple studi
 ## Quick start
 
 ```powershell
-# List detected displays and current brightness
+# Build and start the tray app (recommended)
+.\tray\build.ps1
+.\dist\StudioDisplayBrightness.exe
+
+# Or use the CLI: list displays, set brightness to 55%
 .\tools\studio-display-brightness.ps1 list
-
-# Set brightness to 55%
 .\tools\studio-display-brightness.ps1 set 55
-
-# Open the Windows GUI
-.\tools\studio-display-brightness-ui.ps1
 ```
+
+## Tray app
+
+`dist\StudioDisplayBrightness.exe` sits in the notification area:
+
+- **Click the sun icon** for a Windows 11-style flyout with a brightness slider per Studio Display (drag, mouse wheel or arrow keys).
+- **Hotkeys**: `Ctrl+Alt+PageUp` / `Ctrl+Alt+PageDown` change brightness by 5% and show an on-screen indicator. Hold to repeat.
+- **Remembers brightness** per display and re-applies it when the display connects or the app starts.
+- **Right-click** for *Start with Windows*, the restore toggle, and *Edit settings* (step size, hotkeys; changes apply on save).
+
+On Windows 11 new tray icons go to the overflow menu; drag the icon onto the taskbar (or enable it under
+*Settings > Personalization > Taskbar > Other system tray icons*) to keep it visible.
+
+Build it with `.\tray\build.ps1`. It uses the C# compiler that ships with Windows (.NET Framework 4.8),
+so no Visual Studio or SDK is needed; the EXE is AnyCPU and runs natively on x64 and ARM64.
+Settings live in `%APPDATA%\StudioDisplayBrightness\settings.ini`, the log in
+`%LOCALAPPDATA%\StudioDisplayBrightness\tray.log`.
+
+## Why there is no native Windows slider
+
+Windows only offers its own brightness slider for external monitors through DDC/CI, which the Studio Display
+doesn't implement; it takes brightness over USB HID instead. `driver/` contains an experimental kernel-mode
+filter driver that exposes the Windows panel-brightness interface for the display, but Windows 11 only uses
+that interface for internal panels, so it does not produce a Settings/Quick Settings slider either. Details
+are in [driver/README.md](driver/README.md) and `tasks/todo.md`.
 
 ## Requirements
 
@@ -52,11 +76,13 @@ Not yet verified in this repository:
 
 ## Repository layout
 
+- `tray/` - Tray app source (`src/`) and `build.ps1` (output: `dist/StudioDisplayBrightness.exe`).
 - `tools/studio-display-brightness.ps1` - Core CLI backend.
 - `tools/studio-display-brightness.cmd` - CMD launcher for CLI.
 - `tools/studio-display-brightness-ui.ps1` - WinForms GUI.
 - `tools/studio-display-brightness-ui.cmd` - CMD launcher for GUI.
 - `tools/build-ui-exe.ps1` - Build script for standalone GUI EXE.
+- `driver/` - Experimental monitor filter driver (see "Why there is no native Windows slider").
 
 ## CLI usage
 

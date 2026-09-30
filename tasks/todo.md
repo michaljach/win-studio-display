@@ -91,6 +91,59 @@
 - [x] Update UI startup behavior to read display brightness and apply it on app launch.
 - [x] Verify updated script logic via static review and document any runtime limitations.
 
+## 2026-09-30 Native Windows Brightness Driver
+
+- [x] Identify how Windows 11 discovers brightness-capable displays (monitor.sys interface `{DB524086...}` + Display Enhancement Service private IOCTLs 0x234004..0x234010, plus public `IOCTL_PANEL_*`).
+- [x] Confirm the Studio Display HID Monitor Control collection layout (report 1: VESA brightness in 0.01 nit, 400..60000; duration in ms).
+- [x] Implement a KMDF Monitor-class upper filter (`driver/src`) that services those requests over HID feature reports.
+- [x] Add a VS-free build (WDK/SDK NuGet + portable LLVM) with test signing, install/uninstall scripts with automatic rollback, and a test tool.
+- [ ] Runtime verification on hardware (needs Secure Boot off + test signing + elevation).
+
+## 2026-09-30 Production Driver Package
+
+- [x] Replace registry/sc.exe install with an extension INF (`*PNP09FF`, `AddFilter` upper, DIRID 13, per-arch sections) that passes `InfVerif /h`.
+- [x] Build x64 + ARM64 with /GS, CFG, /WX, version resource; verify HVCI compatibility on every build; generate catalog with Inf2Cat.
+- [x] Leave monitors with native backlight control (e.g. Boot Camp panels) to monitor.sys; panel IOCTLs kernel-only like monitor.sys.
+- [x] Add Partner Center submission CAB tooling (EV signing + timestamp), Microsoft-signature-verified release zip, pnputil install/uninstall with rollback, CI workflow.
+- [ ] Organization: EV certificate + Hardware Developer Program registration, then attestation or WHCP submission.
+- [ ] Hardware test pass (checklist in driver/README.md) before the first submission.
+
+## 2026-09-30 First Hardware Load
+
+- [x] Fix `install.ps1`/`uninstall.ps1` crashing under StrictMode when the monitor class has no `UpperFilters` value.
+- [x] Fix driver load failure (`CM_PROB_DRIVER_FAILED_LOAD`, `0xC0000018` STATUS_CONFLICTING_ADDRESSES): lld-link sets `IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE` by default and the kernel loader refuses such images. Isolated with standalone `sc start` loads of a minimal driver; `/TSAWARE:NO` alone fixes it, `/FILEALIGN:4096` alone doesn't.
+- [x] Also fixed: `/SECTION:INIT,d` in lld replaces attributes (INIT was non-executable) → `INIT,erd`; KMDF context type info moved to `.rdata` (clang emitted a second, read-only `.data`). build.ps1 now rejects TS-aware images, non-executable code sections and duplicate section names.
+- [x] Verified on Studio Display (Win 11 26300, x64, signature enforcement disabled for the boot): driver running, brightness interface registered, `test-driver.ps1` get/set 600 → 200 → 600 nits.
+- [x] Settings / Quick Settings slider: does NOT appear. Root cause found (below); the monitor-filter design can't produce it for an external display.
+
+## 2026-09-30 Why there is no slider (reverse-engineered on build 26300)
+
+- DES (`Microsoft.Graphics.Display.DisplayEnhancementService.dll`) builds a `MonitorAdapterImpl` per `Windows.Devices.Display.DisplayMonitor`.
+  - `GetIsSystemBrightnessMonitor` = `ConnectionKind == Internal` && brightness support != None. This is the only path that uses the `{DB524086…}\brightness` IOCTLs our driver answers.
+  - `GetIsExternalBrightnessMonitor` = `ConnectionKind != Internal` && support != None. It sets brightness through `ColorManagerSetBrightness`, not our interface, and is gated by WIL feature `ExternalBrightness` (ID 12759424, disabled at priority 9 on this machine).
+- Brightness support comes from `DisplayMonitor::CopyBrightnessDataFromMonitorInternalInfo(DISPLAYCONFIG_GET_MONITOR_INTERNAL_INFO)`, i.e. from dxgkrnl per display target. dxgkrnl has its own switch, `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\ExternalBrightnessEnabled` (not set), and `MonitorGetExternalBrightnessPolicy`. Neither dxgkrnl nor win32k references the monitor.sys brightness interface.
+- The GPU reports the Studio Display as a wired external monitor, so DES never uses our interface. Enabling `ExternalBrightness` at runtime alone didn't produce a slider.
+- Option 1 tested and abandoned: rebooted with `ExternalBrightnessEnabled = 1` set before boot, then re-enabled `ExternalBrightness` (priority 10, state 2, status 0) and restarted DES. Still no slider. Likely cause: Windows' external brightness path is DDC/CI-based, and the Studio Display takes brightness only over USB HID. Registry value removed with `enable-external-brightness.ps1 -Revert`.
+- Direction chosen: user-mode tray app (below). The driver stays in the repo as an experiment.
+
+## 2026-09-30 Tray App
+
+- [x] C# WinForms tray app in `tray/src`, built by `tray/build.ps1` with the in-box .NET Framework 4.8 `csc.exe` (no SDK); AnyCPU, PerMonitorV2 manifest, `/warnaserror+`.
+- [x] HID I/O on one worker thread; slider writes coalesced per display (only the newest value is sent). Endpoint selection matches the CLI; endpoints grouped by serial.
+- [x] Windows 11-style flyout (custom slider, theme + accent from registry, DWM rounded corners), OSD for hotkeys, sun tray icon drawn to match the taskbar theme. EXE icon rendered from the same code at build time.
+- [x] Hotkeys (default Ctrl+Alt+PageUp/PageDown, step 5, configurable in `%APPDATA%\StudioDisplayBrightness\settings.ini`, reloaded on save).
+- [x] Last brightness per serial in `HKCU\Software\StudioDisplayBrightness\Brightness`; restored on app start and when a display appears (debounced `DBT_DEVNODES_CHANGED`, resume). "Start with Windows" via HKCU Run.
+- [x] Fixed CLI `set` rejecting 2x..9x values (string comparison on `[string]$Value`).
+- [ ] Visual check of the live flyout (rounded corners/shadow, activation from a real tray click) — verified only via `--render-preview` so far.
+- [ ] Hot-plug restore (unplug/replug the display) on hardware.
+
+## 2026-09-30 Tray App Review
+
+- Hardware (Studio Display, Win 11 26300, 150%): display found (1 endpoint, serial `...401C`); hotkey path 100% → 90% → 100% confirmed with the CLI, value saved to HKCU; restore-on-start put 95% (set by CLI while the app was stopped) back to 100%. ~32 MB working set.
+- `StudioDisplayBrightness.exe --render-preview <dir>` writes flyout/OSD PNGs (dark/light, 1 and 2 displays, empty state) at 150%.
+- The flyout couldn't be seen live because a fullscreen game had the foreground; that also showed the flyout never receives Deactivate when activation is refused, so it now also closes once the cursor leaves it.
+- The HID product string of the brightness endpoint is "HID Relay", so the UI names displays "Studio Display" (+ serial suffix when several are connected).
+
 ## 2026-03-17 Startup Brightness Sync Review
 
 - Updated `tools/studio-display-brightness-ui.ps1` startup flow with `Sync-StartupBrightness`, which reads the selected display brightness on launch, applies that value back to the display, then refreshes UI state.
