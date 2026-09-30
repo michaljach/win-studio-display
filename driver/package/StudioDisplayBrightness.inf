@@ -1,0 +1,114 @@
+;
+; StudioDisplayBrightness.inf
+;
+; Extension INF that adds the StudioDisplayBrightness upper filter to monitor
+; devices, giving USB Monitor Control Class displays (Apple Studio Display,
+; Studio Display XDR, LG UltraFine) native Windows brightness control.
+;
+; Every monitor devnode carries the compatible ID *PNP09FF, so the filter is
+; added to all of them; the driver itself only activates on Apple, LG and
+; EDID-less monitors and is a pass-through everywhere else. The base monitor
+; driver (monitor.inf) is left untouched.
+;
+; DriverVer is stamped by build.ps1. Keep ExtensionId unchanged across
+; releases so updates replace the previous version.
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Extension
+ClassGuid   = {e2f84ce7-8efa-411c-aa69-97454ca4cb57}
+ExtensionId = {2db501d7-e092-43b6-b7a4-926f235929df}
+Provider    = %ProviderName%
+CatalogFile = StudioDisplayBrightness.cat
+DriverVer   = 09/30/2026,1.0.0.0
+PnpLockdown = 1
+
+; Each architecture's binary lives in its own subfolder of the package and of
+; the driver store (DIRID 13), so one package serves x64 and ARM64.
+[DestinationDirs]
+MonitorBrightness_CopyFiles_amd64 = 13,amd64
+MonitorBrightness_CopyFiles_arm64 = 13,arm64
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[SourceDisksFiles.amd64]
+StudioDisplayBrightness.sys = 1,amd64
+
+[SourceDisksFiles.arm64]
+StudioDisplayBrightness.sys = 1,arm64
+
+[Manufacturer]
+%ProviderName% = Monitors, NTamd64.10.0...19041, NTarm64.10.0...19041
+
+[Monitors.NTamd64.10.0...19041]
+%Monitor.ExtensionDesc% = MonitorBrightness_Install, *PNP09FF
+
+[Monitors.NTarm64.10.0...19041]
+%Monitor.ExtensionDesc% = MonitorBrightness_Install, *PNP09FF
+
+; ---- x64 ----
+
+[MonitorBrightness_Install.NTamd64]
+CopyFiles = MonitorBrightness_CopyFiles_amd64
+
+[MonitorBrightness_CopyFiles_amd64]
+StudioDisplayBrightness.sys
+
+[MonitorBrightness_Install.NTamd64.Filters]
+AddFilter = StudioDisplayBrightness,, MonitorBrightness_Filter
+
+[MonitorBrightness_Install.NTamd64.Services]
+AddService = StudioDisplayBrightness,, MonitorBrightness_Service_amd64
+
+[MonitorBrightness_Service_amd64]
+DisplayName   = %Service.DisplayName%
+Description   = %Service.Description%
+ServiceType   = 1               ; SERVICE_KERNEL_DRIVER
+StartType     = 3               ; SERVICE_DEMAND_START
+ErrorControl  = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary = %13%\amd64\StudioDisplayBrightness.sys
+
+[MonitorBrightness_Install.NTamd64.Wdf]
+KmdfService = StudioDisplayBrightness, MonitorBrightness_Wdf
+
+; ---- ARM64 ----
+
+[MonitorBrightness_Install.NTarm64]
+CopyFiles = MonitorBrightness_CopyFiles_arm64
+
+[MonitorBrightness_CopyFiles_arm64]
+StudioDisplayBrightness.sys
+
+[MonitorBrightness_Install.NTarm64.Filters]
+AddFilter = StudioDisplayBrightness,, MonitorBrightness_Filter
+
+[MonitorBrightness_Install.NTarm64.Services]
+AddService = StudioDisplayBrightness,, MonitorBrightness_Service_arm64
+
+[MonitorBrightness_Service_arm64]
+DisplayName   = %Service.DisplayName%
+Description   = %Service.Description%
+ServiceType   = 1               ; SERVICE_KERNEL_DRIVER
+StartType     = 3               ; SERVICE_DEMAND_START
+ErrorControl  = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary = %13%\arm64\StudioDisplayBrightness.sys
+
+[MonitorBrightness_Install.NTarm64.Wdf]
+KmdfService = StudioDisplayBrightness, MonitorBrightness_Wdf
+
+; ---- shared ----
+
+[MonitorBrightness_Filter]
+FilterPosition = Upper
+
+[MonitorBrightness_Wdf]
+KmdfLibraryVersion = 1.15
+
+[Strings]
+ProviderName          = "win-studio-display"
+DiskName              = "Studio Display Brightness Installation Disk"
+Monitor.ExtensionDesc = "Studio Display Brightness monitor extension"
+Service.DisplayName   = "Studio Display Brightness"
+Service.Description   = "Native Windows brightness control for USB Monitor Control Class displays."

@@ -1,0 +1,35 @@
+/*
+ * Version resource. build.ps1 generates sdb_version.h with SDB_VER_* and
+ * SDB_COMPANY. Constants are spelled out so no SDK headers are needed.
+ */
+
+#include "sdb_version.h"
+
+1 VERSIONINFO
+FILEVERSION     SDB_VER_MAJOR, SDB_VER_MINOR, SDB_VER_BUILD, SDB_VER_REVISION
+PRODUCTVERSION  SDB_VER_MAJOR, SDB_VER_MINOR, SDB_VER_BUILD, SDB_VER_REVISION
+FILEFLAGSMASK   0x3F
+FILEFLAGS       0x0
+FILEOS          0x40004     /* VOS_NT_WINDOWS32 */
+FILETYPE        0x3         /* VFT_DRV */
+FILESUBTYPE     0x7         /* VFT2_DRV_SYSTEM */
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      SDB_COMPANY
+            VALUE "FileDescription",  "Studio Display Brightness monitor filter"
+            VALUE "FileVersion",      SDB_VER_STRING
+            VALUE "InternalName",     "StudioDisplayBrightness.sys"
+            VALUE "LegalCopyright",   "Copyright (C) " SDB_COMPANY
+            VALUE "OriginalFilename", "StudioDisplayBrightness.sys"
+            VALUE "ProductName",      "Studio Display Brightness"
+            VALUE "ProductVersion",   SDB_VER_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

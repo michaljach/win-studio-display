@@ -1,0 +1,47 @@
+name: driver
+
+on:
+  push:
+    paths:
+      - "driver/**"
+      - ".github/workflows/driver.yml"
+  pull_request:
+    paths:
+      - "driver/**"
+      - ".github/workflows/driver.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Driver version (a.b.c.d)"
+        required: false
+        default: "1.0.0.0"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # WDK / SDK NuGet packages and LLVM (~2 GB), keyed on the pinned versions in build.ps1.
+      - uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\wsd-toolchain
+          key: wsd-toolchain-${{ hashFiles('driver/build.ps1') }}
+
+      - name: Build unsigned package (x64 + ARM64)
+        shell: powershell
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if (-not $version) { $version = "1.0.0.0" }
+          .\driver\build.ps1 -Version $version -Sign None
+
+      - name: Create submission CAB (unsigned)
+        shell: powershell
+        run: .\driver\package-submission.ps1 -SkipSigning
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-package
+          path: |
+            driver/dist/package
+            driver/dist/submission/StudioDisplayBrightness.cab
