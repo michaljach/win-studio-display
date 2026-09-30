@@ -1,90 +1,45 @@
 # Apple Studio Display Brightness Control for Windows
 
-Control **Apple Studio Display brightness on Windows** using a PowerShell CLI, a lightweight WinForms GUI, or a single-file EXE. This project talks directly to the display over **USB HID feature reports** (no DDC/CI dependency).
+Control **Apple Studio Display brightness on Windows** from a small tray app with a Windows 11-style slider and hotkeys, or from a PowerShell CLI. It talks directly to the display over **USB HID feature reports** (no DDC/CI dependency).
 
-If you searched for terms like _studio display brightness windows_, _apple studio display windows brightness control_, or _studio display brightness powershell_, this is the tool.
+If you searched for terms like _studio display brightness windows_, _apple studio display windows brightness control_, or _studio display brightness slider_, this is the tool.
 
-## Preview
+![Studio Display brightness flyout on Windows 11](docs/tray-flyout.png)
 
-![Studio Display Brightness Windows GUI preview](docs/preview.png)
+## Download
 
-## Why this tool
+**[StudioDisplayBrightness.exe](https://github.com/michaljach/win-studio-display/releases/latest/download/StudioDisplayBrightness.exe)** from the [latest release](https://github.com/michaljach/win-studio-display/releases/latest). It's a single file, with nothing to install; run it and a sun icon appears in the notification area.
 
-- Direct HID brightness control for Apple Studio Display on Windows 10/11.
-- Multiple ways to use it: CLI, `.cmd` wrappers, or GUI.
-- GUI can be bundled into a distributable EXE with embedded backend logic.
-- Auto-detects Apple HID endpoints and handles common Studio Display revisions.
-
-## Quick start
-
-```powershell
-# Build and start the tray app (recommended)
-.\tray\build.ps1
-.\dist\StudioDisplayBrightness.exe
-
-# Or use the CLI: list displays, set brightness to 55%
-.\tools\studio-display-brightness.ps1 list
-.\tools\studio-display-brightness.ps1 set 55
-```
+The EXE isn't code-signed yet, so SmartScreen may warn on first run (*More info → Run anyway*). You can also [build it yourself](#build-from-source) in a few seconds.
 
 ## Tray app
 
-`dist\StudioDisplayBrightness.exe` sits in the notification area:
-
-- **Click the sun icon** for a Windows 11-style flyout with a brightness slider per Studio Display (drag, mouse wheel or arrow keys).
+- **Click the sun icon** for a flyout with a brightness slider per Studio Display (drag, mouse wheel or arrow keys).
 - **Hotkeys**: `Ctrl+Alt+PageUp` / `Ctrl+Alt+PageDown` change brightness by 5% and show an on-screen indicator. Hold to repeat.
+
+  ![Hotkey brightness indicator](docs/hotkey-osd.png)
+
 - **Remembers brightness** per display and re-applies it when the display connects or the app starts.
 - **Right-click** for *Start with Windows*, the restore toggle, and *Edit settings* (step size, hotkeys; changes apply on save).
+- Follows the Windows light/dark theme and accent color; per-monitor DPI aware.
 
-On Windows 11 new tray icons go to the overflow menu; drag the icon onto the taskbar (or enable it under
+On Windows 11 new tray icons go to the overflow menu (^); drag the icon onto the taskbar (or enable it under
 *Settings > Personalization > Taskbar > Other system tray icons*) to keep it visible.
 
-Build it with `.\tray\build.ps1`. It uses the C# compiler that ships with Windows (.NET Framework 4.8),
-so no Visual Studio or SDK is needed; the EXE is AnyCPU and runs natively on x64 and ARM64.
 Settings live in `%APPDATA%\StudioDisplayBrightness\settings.ini`, the log in
 `%LOCALAPPDATA%\StudioDisplayBrightness\tray.log`.
 
-## Why there is no native Windows slider
+## Build from source
 
-Windows only offers its own brightness slider for external monitors through DDC/CI, which the Studio Display
-doesn't implement; it takes brightness over USB HID instead. `driver/` contains an experimental kernel-mode
-filter driver that exposes the Windows panel-brightness interface for the display, but Windows 11 only uses
-that interface for internal panels, so it does not produce a Settings/Quick Settings slider either. Details
-are in [driver/README.md](driver/README.md) and `tasks/todo.md`.
+```powershell
+.\tray\build.ps1
+.\dist\StudioDisplayBrightness.exe
+```
 
-## Requirements
+The build uses the C# compiler that ships with Windows (.NET Framework 4.8), so no Visual Studio or SDK is
+needed. The EXE is AnyCPU and runs natively on x64 and ARM64.
 
-- Windows 10 or Windows 11
-- PowerShell 5.1+ or PowerShell 7+
-- Apple Studio Display connected by USB-C / Thunderbolt
-
-## Supported monitors
-
-Known supported:
-
-- Apple Studio Display (27-inch) over USB-C/Thunderbolt
-- Apple Studio Display hardware revisions that expose Apple HID brightness report support (`VID_05AC`, commonly `PID 0x1114..0x1117`)
-
-Compatibility-based support (detected automatically):
-
-- Newer or variant Apple displays that expose the same HID brightness feature report
-- Listings/search terms such as "Apple Studio Display XDR 2026" if the connected device reports compatible Apple HID brightness endpoints
-
-Not yet verified in this repository:
-
-- Apple Pro Display XDR (community testing welcome)
-
-## Repository layout
-
-- `tray/` - Tray app source (`src/`) and `build.ps1` (output: `dist/StudioDisplayBrightness.exe`).
-- `tools/studio-display-brightness.ps1` - Core CLI backend.
-- `tools/studio-display-brightness.cmd` - CMD launcher for CLI.
-- `tools/studio-display-brightness-ui.ps1` - WinForms GUI.
-- `tools/studio-display-brightness-ui.cmd` - CMD launcher for GUI.
-- `tools/build-ui-exe.ps1` - Build script for standalone GUI EXE.
-- `driver/` - Experimental monitor filter driver (see "Why there is no native Windows slider").
-
-## CLI usage
+## CLI
 
 ```powershell
 # List detected Studio Displays (serial + pid + interface + brightness)
@@ -105,54 +60,54 @@ Not yet verified in this repository:
 .\tools\studio-display-brightness.ps1 get -Serial "YOUR_SERIAL"
 .\tools\studio-display-brightness.ps1 set 65 -Serial "YOUR_SERIAL"
 
-# Target by list index (useful for automation/UI mapping)
+# Target by list index
 .\tools\studio-display-brightness.ps1 get -Index 0
 .\tools\studio-display-brightness.ps1 set 65 -Index 0
 ```
 
-CMD wrapper equivalents:
+CMD wrapper equivalents (no execution-policy prompts):
 
 ```cmd
 tools\studio-display-brightness.cmd list
 tools\studio-display-brightness.cmd set 60
 ```
 
-## Windows GUI
+## Why there is no native Windows slider
 
-Launch GUI from PowerShell:
+Windows only offers its own brightness slider for external monitors through DDC/CI, which the Studio Display
+doesn't implement; it takes brightness over USB HID instead. `driver/` contains an experimental kernel-mode
+filter driver that exposes the Windows panel-brightness interface for the display, but Windows 11 only uses
+that interface for internal panels, so it does not produce a Settings/Quick Settings slider either. Details
+are in [driver/README.md](driver/README.md) and `tasks/todo.md`.
 
-```powershell
-.\tools\studio-display-brightness-ui.ps1
-```
+## Requirements
 
-Or from CMD:
+- Windows 10 or Windows 11 (x64 or ARM64)
+- Apple Studio Display connected by USB-C / Thunderbolt
+- For the CLI: PowerShell 5.1+ or PowerShell 7+
 
-```cmd
-tools\studio-display-brightness-ui.cmd
-```
+## Supported monitors
 
-GUI includes:
+Known supported:
 
-- Display picker
-- Startup brightness sync (read + apply current display brightness on launch)
-- Brightness slider (0-100)
-- Refresh button
-- +/-10 quick step buttons
-- Apply button
+- Apple Studio Display (27-inch) over USB-C/Thunderbolt
+- Apple Studio Display hardware revisions that expose Apple HID brightness report support (`VID_05AC`, commonly `PID 0x1114..0x1117`)
 
-## Build standalone EXE
+Compatibility-based support (detected automatically):
 
-Run on Windows PowerShell:
+- Newer or variant Apple displays that expose the same HID brightness feature report
+- Listings/search terms such as "Apple Studio Display XDR 2026" if the connected device reports compatible Apple HID brightness endpoints
 
-```powershell
-.\tools\build-ui-exe.ps1
-```
+Not yet verified in this repository:
 
-Build output:
+- Apple Pro Display XDR (community testing welcome)
 
-- `dist/StudioDisplayBrightnessUI.exe`
+## Repository layout
 
-The backend script is embedded during build, so distribution can be a single executable.
+- `tray/` - Tray app source (`src/`) and `build.ps1` (output: `dist/StudioDisplayBrightness.exe`).
+- `tools/studio-display-brightness.ps1` - CLI.
+- `tools/studio-display-brightness.cmd` - CMD launcher for the CLI.
+- `driver/` - Experimental monitor filter driver (see "Why there is no native Windows slider").
 
 ## Technical details
 
@@ -161,15 +116,15 @@ HID behavior follows the same approach used by `himbeles/studi` / `asdbctl`:
 - Vendor ID: `0x05AC` (Apple)
 - Product ID/interface auto-detection with preference for known Studio Display combos (for example `PID 0x1114`, `MI_07`)
 - HID report: 7 bytes (`report id 1` + 4-byte little-endian brightness + 2 padding bytes)
-- Raw brightness range: `400..60000` mapped to `0..100%`
+- Raw brightness range: `400..60000` (0.01 nit units) mapped to `0..100%`
 
 ## Troubleshooting
 
 - Generic monitor names in Windows settings are expected and do not block control.
-- `list` shows `pid` and `mi` to help identify hardware/interface variants.
-- If no display is found, test a direct connection (some docks/adapters block required HID paths).
-- If execution-policy prompts appear, use the included `.cmd` launchers.
+- The tray flyout says "No Studio Display found": test a direct connection (some docks/adapters block the required HID interface), then check `tray.log`.
+- `list` in the CLI shows `pid` and `mi` to help identify hardware/interface variants.
+- A hotkey warning balloon means another app already uses that shortcut; pick another in *Edit settings*.
 
 ## Discoverability keywords
 
-Apple Studio Display, Windows brightness control, Studio Display brightness tool, PowerShell HID monitor control, USB HID brightness CLI, WinForms Studio Display GUI.
+Apple Studio Display, Windows brightness control, Studio Display brightness slider, Studio Display tray app, USB HID brightness CLI, PowerShell HID monitor control.

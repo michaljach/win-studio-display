@@ -134,8 +134,12 @@
 - [x] Hotkeys (default Ctrl+Alt+PageUp/PageDown, step 5, configurable in `%APPDATA%\StudioDisplayBrightness\settings.ini`, reloaded on save).
 - [x] Last brightness per serial in `HKCU\Software\StudioDisplayBrightness\Brightness`; restored on app start and when a display appears (debounced `DBT_DEVNODES_CHANGED`, resume). "Start with Windows" via HKCU Run.
 - [x] Fixed CLI `set` rejecting 2x..9x values (string comparison on `[string]$Value`).
-- [ ] Visual check of the live flyout (rounded corners/shadow, activation from a real tray click) — verified only via `--render-preview` so far.
+- [ ] Activation from a real tray click (flyout seen live only via second-instance launch).
 - [ ] Hot-plug restore (unplug/replug the display) on hardware.
+
+- [x] Released as `v2026.09.30` (EXE asset).
+- [x] Removed the old PowerShell GUI (`tools/studio-display-brightness-ui.*`, `tools/build-ui-exe.ps1`); README rewritten around the tray app with a latest-release download link and new screenshots (`docs/tray-flyout.png`, `docs/hotkey-osd.png`, captured live and corner-masked).
+- [x] Live flyout checked on hardware (DWM rounded corners, 150%).
 
 ## 2026-09-30 Tray App Review
 
